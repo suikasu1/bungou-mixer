@@ -38,11 +38,18 @@
     .toast{ font-size:12px; color:#b9f6ca; margin-left:6px; display:none; }
     footer{ margin-top:14px; font-size:12px; color:var(--muted); }
     a{ color:#b7c7ff; }
+
+    /* 本っぽさ：本文だけ明朝体に */
+    #kamiText, #shimoText, #resultText{
+    font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
+    letter-spacing: .02em;
+    }
+    #resultText{ font-size:24px; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>名文シャッフル（試作）</h1>
+    <h1>文豪ミキサー（β版）</h1>
 
     <div class="panel">
       <div class="grid">
@@ -81,8 +88,9 @@
       <div class="result">
         <div class="label">完成文</div>
         <div id="resultText" class="text">—</div>
-        <div class="hint">※文章のつながりに違和感がある場合、「ジョイント」を挿入して直すことができます。</div>
       </div>
+
+      <div class="hint">※文章のつながりに違和感がある場合、「ジョイント」を挿入して直すことができます。</div>
 
       <footer>
         ※気に入った文章はURLをそのままコピーして共有できます。
