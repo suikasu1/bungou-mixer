@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>名文シャッフル（試作）</title>
+  <style>
+    :root{ --bg:#0b0c10; --card:#111317; --text:#e7e7e7; --muted:#a8b0bf; --line:#232734; }
+    body{ margin:0; font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+      background: radial-gradient(1200px 800px at 20% 10%, #1a1f2e 0%, var(--bg) 55%);
+      color:var(--text);
+    }
+    .wrap{ max-width:900px; margin:0 auto; padding:24px 16px 48px; }
+    h1{ font-size:18px; margin:0 0 12px; letter-spacing:.04em; }
+    .panel{ background: rgba(17,19,23,.92); border:1px solid var(--line); border-radius:16px; padding:16px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+    .grid{ display:grid; gap:12px; grid-template-columns:1fr; }
+    @media(min-width:760px){ .grid{ grid-template-columns:1fr 1fr; } }
+    .label{ font-size:12px; color:var(--muted); margin-bottom:6px; }
+    .box{ background:rgba(255,255,255,.03); border:1px solid var(--line); border-radius:12px; padding:12px; min-height:72px; }
+    .text{ font-size:18px; line-height:1.7; }
+    .meta{ font-size:12px; color:var(--muted); margin-top:6px; }
+    .row{ display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; align-items:center; }
+    button{
+      appearance:none; border:1px solid var(--line); background:rgba(255,255,255,.06); color:var(--text);
+      padding:10px 12px; border-radius:12px; cursor:pointer; font-weight:600;
+    }
+    button:hover{ background:rgba(255,255,255,.10); }
+    button.primary{ background:rgba(90,140,255,.25); border-color:rgba(90,140,255,.35); }
+    select{
+      background:rgba(255,255,255,.06); color:var(--text); border:1px solid var(--line);
+      padding:10px 12px; border-radius:12px;
+    }
+    .result{ margin-top:14px; padding:14px; border-radius:14px; border:1px solid rgba(90,140,255,.35);
+      background: linear-gradient(180deg, rgba(90,140,255,.18), rgba(255,255,255,.03));
+    }
+    .result .text{ font-size:22px; }
+    .hint{ font-size:12px; color:var(--muted); margin-top:8px; }
+    .toast{ font-size:12px; color:#b9f6ca; margin-left:6px; display:none; }
+    footer{ margin-top:14px; font-size:12px; color:var(--muted); }
+    a{ color:#b7c7ff; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>名文シャッフル（試作）</h1>
+
+    <div class="panel">
+      <div class="grid">
+        <div>
+          <div class="label">上の句</div>
+          <div class="box">
+            <div id="kamiText" class="text">—</div>
+            <div id="kamiMeta" class="meta"></div>
+          </div>
+        </div>
+        <div>
+          <div class="label">下の句</div>
+          <div class="box">
+            <div id="shimoText" class="text">—</div>
+            <div id="shimoMeta" class="meta"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <button id="drawBtn" class="primary">シャッフル</button>
+        <button id="drawKamiBtn">上の句だけ引く</button>
+        <button id="drawShimoBtn">下の句だけ引く</button>
+
+        <span style="flex:1 1 auto;"></span>
+
+        <label class="label" style="margin:0;">ジョイント（後入れ）</label>
+        <select id="jointSelect" aria-label="ジョイントを選ぶ">
+          <option value="">（入れない）</option>
+        </select>
+
+        <button id="copyBtn">コピー</button>
+        <span id="toast" class="toast">コピーしました</span>
+      </div>
+
+      <div class="result">
+        <div class="label">完成文</div>
+        <div id="resultText" class="text">—</div>
+        <div class="hint">※ジョイントは任意。違和感を“文学”に変えたいときだけ後入れ。</div>
+      </div>
+
+      <footer>
+        共有：URL末尾に <code>?k=0&s=0&j=0</code> のように付くと同じ結果を再現できます（自動で更新）。
+      </footer>
+    </div>
+  </div>
+
+<script>
+  // ===== データ =====
+  const kami = [
+    { text: "吾輩（わがはい）は", work: "吾輩は猫である", author: "夏目漱石" },
+    { text: "国境の長いトンネルを抜けると", work: "雪国", author: "川端康成" },
+    { text: "メロスは", work: "走れメロス", author: "太宰治" },
+    { text: "恥の多い生涯を", work: "人間失格", author: "太宰治" },
+    { text: "隴西（ろうさい）の李徴（りちょう）は", work: "山月記", author: "中島敦" },
+    { text: "ある日の暮方のことである。一人の下人が", work: "羅生門", author: "芥川龍之介" },
+    { text: "親譲りの無鉄砲で", work: "坊っちゃん", author: "夏目漱石" },
+    { text: "山路（やまみち）を登りながら", work: "草枕", author: "夏目漱石" },
+    { text: "えたいの知れない不吉な塊が", work: "檸檬", author: "梶井基次郎" },
+    { text: "ある日の事でございます。御釈迦様は", work: "蜘蛛の糸", author: "芥川龍之介" },
+    { text: "私は、或る日の午後、", work: "D坂の殺人事件", author: "江戸川乱歩" },
+    { text: "奥様、これは", work: "人間椅子", author: "江戸川乱歩" },
+    { text: "降矢木家の一族は、", work: "黒死館殺人事件", author: "小栗虫太郎" },
+    { text: "桜の樹の下には", work: "桜の樹の下には", author: "梶井基次郎" },
+    { text: "二人の若い紳士が、", work: "注文の多い料理店", author: "宮沢賢治" },
+    { text: "智恵子は", work: "智恵子抄", author: "" }
+  ];
+
+  const shimo = [
+    { text: "猫である。名前はまだ無い。", work: "吾輩は猫である", author: "夏目漱石" },
+    { text: "そこは雪国であった。", work: "雪国", author: "川端康成" },
+    { text: "激怒した。", work: "走れメロス", author: "太宰治" },
+    { text: "送って来ました。", work: "人間失格", author: "太宰治" },
+    { text: "雨やみを待っていた。", work: "羅生門", author: "芥川龍之介" },
+    { text: "小供の時から損ばかりしている。", work: "坊っちゃん", author: "夏目漱石" },
+    { text: "こう考えた。", work: "草枕", author: "夏目漱石" },
+    { text: "私の心を始終圧えつけていた。", work: "檸檬", author: "梶井基次郎" },
+    { text: "蓮池のふちを、独りでぶらぶら御歩きになっていらっしゃいました。", work: "蜘蛛の糸", author: "芥川龍之介" },
+    { text: "一軒の喫茶店で一人の男と向い合っていた。", work: "D坂の殺人事件", author: "江戸川乱歩" },
+    { text: "決して怪しい者ではございません。", work: "人間椅子", author: "江戸川乱歩" },
+    { text: "奇怪な毒殺の連鎖に震えていた。", work: "黒死館殺人事件", author: "小栗虫太郎" },
+    { text: "屍体（したい）が埋まっている！", work: "桜の樹の下には", author: "梶井基次郎" },
+    { text: "すっかりイギリスの兵隊のかたちをして。", work: "注文の多い料理店", author: "宮沢賢治" },
+    { text: "東京に空が無いといふ。", work: "智恵子抄", author: "" }
+  ];
+
+  const joints = ["が、", "なのに、", "というふうに、", "のせいで、", "けれども、", "だから、", "それでも、", "すると、"];
+
+  // ===== ユーティリティ =====
+  const qs = (sel) => document.querySelector(sel);
+  const randIndex = (n) => Math.floor(Math.random() * n);
+
+  function metaLine(item){
+    const parts = [];
+    if(item.work) parts.push(item.work);
+    if(item.author) parts.push(item.author);
+    return parts.join("（") + (item.author ? "）" : "");
+  }
+
+  function composeSentence(k, j, s){
+    const kTxt = kami[k].text;
+    const sTxt = shimo[s].text;
+    const joint = j === "" ? "" : joints[Number(j)];
+
+    // 句読点の過剰を軽く整える（ゆるめ）
+    let mid = joint ? (joint.startsWith("、") ? joint : "、" + joint) : "";
+    // ただし、上の句が読点で終わっている場合は先頭の読点を削る
+    if (mid && /[、，,]$/.test(kTxt)) mid = mid.replace(/^、/, "");
+
+    // 下の句が句点から始まることは想定しないが念のため
+    const out = `${kTxt}${mid}${sTxt}`.replace(/、、+/g, "、");
+    return out;
+  }
+
+  function setFromIndices(k, s, jStr){
+    const kItem = kami[k];
+    const sItem = shimo[s];
+
+    qs("#kamiText").textContent = kItem.text;
+    qs("#kamiMeta").textContent = (kItem.work ? `出典：${kItem.work}${kItem.author ? "（" + kItem.author + "）" : ""}` : "");
+
+    qs("#shimoText").textContent = sItem.text;
+    qs("#shimoMeta").textContent = (sItem.work ? `出典：${sItem.work}${sItem.author ? "（" + sItem.author + "）" : ""}` : "");
+
+    qs("#jointSelect").value = jStr ?? "";
+    qs("#resultText").textContent = composeSentence(k, qs("#jointSelect").value, s);
+
+    // 共有URLを更新（履歴を汚さない）
+    const params = new URLSearchParams();
+    params.set("k", String(k));
+    params.set("s", String(s));
+    if(qs("#jointSelect").value !== "") params.set("j", qs("#jointSelect").value);
+    const newUrl = `${location.pathname}?${params.toString()}`;
+    history.replaceState(null, "", newUrl);
+  }
+
+  // ===== 初期化 =====
+  function initJointOptions(){
+    const sel = qs("#jointSelect");
+    joints.forEach((t, idx) => {
+      const opt = document.createElement("option");
+      opt.value = String(idx);
+      opt.textContent = t;
+      sel.appendChild(opt);
+    });
+  }
+
+  function initFromURLorRandom(){
+    const p = new URLSearchParams(location.search);
+    const k = p.has("k") ? Number(p.get("k")) : randIndex(kami.length);
+    const s = p.has("s") ? Number(p.get("s")) : randIndex(shimo.length);
+    const j = p.has("j") ? p.get("j") : "";
+
+    const safeK = Number.isInteger(k) && k >= 0 && k < kami.length ? k : randIndex(kami.length);
+    const safeS = Number.isInteger(s) && s >= 0 && s < shimo.length ? s : randIndex(shimo.length);
+    const safeJ = (j === "" || (Number.isInteger(Number(j)) && Number(j) >= 0 && Number(j) < joints.length)) ? (j ?? "") : "";
+
+    setFromIndices(safeK, safeS, safeJ);
+  }
+
+  // ===== イベント =====
+  function wire(){
+    qs("#drawBtn").addEventListener("click", () => {
+      setFromIndices(randIndex(kami.length), randIndex(shimo.length), qs("#jointSelect").value);
+    });
+    qs("#drawKamiBtn").addEventListener("click", () => {
+      const p = new URLSearchParams(location.search);
+      const s = p.has("s") ? Number(p.get("s")) : randIndex(shimo.length);
+      setFromIndices(randIndex(kami.length), (Number.isInteger(s) && s>=0 && s<shimo.length) ? s : randIndex(shimo.length), qs("#jointSelect").value);
+    });
+    qs("#drawShimoBtn").addEventListener("click", () => {
+      const p = new URLSearchParams(location.search);
+      const k = p.has("k") ? Number(p.get("k")) : randIndex(kami.length);
+      setFromIndices((Number.isInteger(k) && k>=0 && k<kami.length) ? k : randIndex(kami.length), randIndex(shimo.length), qs("#jointSelect").value);
+    });
+
+    qs("#jointSelect").addEventListener("change", () => {
+      const p = new URLSearchParams(location.search);
+      const k = p.has("k") ? Number(p.get("k")) : 0;
+      const s = p.has("s") ? Number(p.get("s")) : 0;
+      const safeK = Number.isInteger(k) && k >= 0 && k < kami.length ? k : 0;
+      const safeS = Number.isInteger(s) && s >= 0 && s < shimo.length ? s : 0;
+      setFromIndices(safeK, safeS, qs("#jointSelect").value);
+    });
+
+    qs("#copyBtn").addEventListener("click", async () => {
+      const text = qs("#resultText").textContent;
+      try{
+        await navigator.clipboard.writeText(text);
+        qs("#toast").style.display = "inline";
+        setTimeout(()=> qs("#toast").style.display = "none", 1200);
+      }catch(e){
+        // iOSなどで失敗する場合のフォールバック
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        qs("#toast").style.display = "inline";
+        setTimeout(()=> qs("#toast").style.display = "none", 1200);
+      }
+    });
+  }
+
+  initJointOptions();
+  initFromURLorRandom();
+  wire();
+</script>
+</body>
+</html>
